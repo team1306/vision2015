@@ -1,3 +1,5 @@
+#define PRINT
+
 #include <opencv/cv.h>
 #include <opencv/highgui.h>
 #include <iostream>
@@ -5,7 +7,12 @@
 #include <cmath>
 #include <math.h>
 #include <ctime>
-//#include <chrono>
+
+#ifdef PRINT
+#include <chrono>
+#endif
+
+
 
 using namespace cv;
 
@@ -43,46 +50,51 @@ int main(int, char**)
     Mat colors [3];
     VideoCapture vcap;
     std::cout << "Connecting..." << std::endl;
-    vcap.open("http://10.13.6.11/mjpg/video.mjpg");
-    //vcap.open(0);
+    //vcap.open("http://10.13.6.11/mjpg/video.mjpg");
+    vcap.open(0);
     std::cout << "Connected" << std::endl << std::endl;
     namedWindow("edges",1);
     for(;;)
     {
-      //std::chrono::high_resolution_clock::time_point begin = std::chrono::high_resolution_clock::now();
+      #ifdef PRINT
+      std::chrono::high_resolution_clock::time_point begin = std::chrono::high_resolution_clock::now();
+      #endif
+
       Mat frame;
       vcap.read(frame);
-      //std::chrono::high_resolution_clock::time_point end = std::chrono::high_resolution_clock::now();
-      /*
+
+      #ifdef PRINT
+      std::chrono::high_resolution_clock::time_point end = std::chrono::high_resolution_clock::now();
       std::cout << "Read: " << (double)std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()/1000 << " secs" << std::endl;
       begin = end;
-      */
+      #endif
 
       if(frame.data) {
 	split(frame, colors);
 	imshow("colors", colors[1]);
-	/*
+	#ifdef PRINT
 	end = std::chrono::high_resolution_clock::now();
 	std::cout << "Split: " << (double)std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()/1000 << " secs" << std::endl;
 	begin = end;
-	*/
+	#endif
+
 	threshold(colors[1], edges, 180, 255, THRESH_BINARY);
 	imshow("thresh", edges);
 	GaussianBlur(edges, edges, Size(7,7), 1.5, 1.5);
 	
-	/*
+	#ifdef PRINT
 	end = std::chrono::high_resolution_clock::now();
 	std::cout << "Preprocessing: " << (double)std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()/1000 << " secs" << std::endl;
 	begin = end;
-	*/
+	#endif
 
 	findContours(edges, contours, hierarchy, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE, Point(0, 0));
 
-	/*
+	#ifdef PRINT
 	end = std::chrono::high_resolution_clock::now();
 	std::cout << "Found contours: " << (double)std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()/1000 << " secs" << std::endl;
 	begin = end;
-	*/
+	#endif
 	
 	std::vector<std::vector<Point> > targets;
 	std::vector<std::vector<Point> > blobs;
@@ -139,9 +151,10 @@ int main(int, char**)
 	imshow("edges", drawing);
 	if(waitKey(30) >= 0) break;
       }
-      //end = std::chrono::high_resolution_clock::now();
-      //std::cout << "Final: " << (double)std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()/1000 << " secs" << std::endl << std::endl;
-      sleep(0.05);
+      #ifdef PRINT
+      end = std::chrono::high_resolution_clock::now();
+      std::cout << "Final: " << (double)std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()/1000 << " secs" << std::endl << std::endl;
+      #endif
     }
     // the camera will be deinitialized automatically in VideoCapture destructor
     return 0;
