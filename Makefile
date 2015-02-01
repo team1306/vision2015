@@ -18,9 +18,6 @@ test: test.o
 threads: threads.o
 	$(CC) threads.o -o threads $(OPENCV_CFLAGS) $(OPENCV_LIBS)
 
-client: client.o
-	$(CC) client.o -o client $(THREAD_LIBS)
-
 main.o: main.cpp
 	$(CC) -c main.cpp $(THREAD_CFLAGS) $(OPENCV_CFLAGS) $(CFLAGS)
 
@@ -32,9 +29,6 @@ threads.o: threads.cpp
 
 roboriosocket.o: roboriosocket.cpp
 	$(CC) -c roboriosocket.cpp $(OPENCV_CFLAGS) $(CFLAGS)
-
-client.o: client.cpp
-	$(CC) -c client.cpp $(THREAD_CFLAGS) $(CFLAGS)
 
 clean:
 	rm ./*.o
