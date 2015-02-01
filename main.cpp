@@ -10,20 +10,31 @@
 #include <sys/socket.h>
 #include <netdb.h>
 
+#include <opencv/cv.h>
+#include <opencv/highgui.h>
+
+using namespace cv;
+
 std::mutex lateralMtx;
 double lateral;
 
+std::mutex imageMtx;
+Mat image;
+
 void *ServeRoboRIO(void *);
-void *GrabIamge(void *);
+void *GrabImage(void *);
 
 int main() {
   pthread_t server;
-  int iret1;
+  pthread_t retrieveImage;
+  int iret1, iret2;
 
   iret1 = pthread_create(&server, NULL, ServeRoboRIO, NULL);
+  iret2 = pthread_create(&retrieveImage, NULL, GrabImage, NULL);
 
   lateral = 0.5;
   pthread_join(server, NULL);
+  pthread_join(retrieveImage, NULL);
 
   return 0;
 }
@@ -66,5 +77,15 @@ void *ServeRoboRIO(void *dummy) {
 }
 
 void *GrabImage(void *) {
-  
+  VideoCapture vcap;
+  //vcap.open("http://10.13.6.11/mjpg/video.mjpg");
+  vcap.open(0);
+
+  Mat tmp;
+  while(1) {
+    vcap.read(tmp);
+    imageMtx.lock();
+    tmp.copyTo(image);
+    imageMtx.unlock();
+  }
 }
