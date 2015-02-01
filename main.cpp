@@ -28,6 +28,9 @@ double lateral;
 std::mutex imageMtx;
 Mat image;
 
+std::mutex freshImageMtx;
+bool freshImage = false;
+
 bool compareArea(std::vector<Point>, std::vector<Point>);
 void ServeRoboRIO();
 void GrabImage();
@@ -105,6 +108,10 @@ void GrabImage() {
     imageMtx.lock();
     tmp.copyTo(image);
     imageMtx.unlock();
+    
+    freshImageMtx.lock();
+    freshImage = true;
+    freshImageMtx.unlock();
 
     #ifdef PRINT
     end = std::chrono::high_resolution_clock::now();
@@ -119,107 +126,112 @@ void ProcessImage() {
   std::vector<Vec4i> hierarchy;
   Mat colors [3];
 
-  #ifdef PRINT
+#ifdef PRINT
   std::chrono::high_resolution_clock::time_point begin, end;
-  #endif
+#endif
 
   while(1) {
-    #ifdef PRINT
-    begin = std::chrono::high_resolution_clock::now();
-    #endif
+    if(freshImage) {
+#ifdef PRINT
+      begin = std::chrono::high_resolution_clock::now();
+#endif
 
-    Mat frame;
-    imageMtx.lock();
-    image.copyTo(frame);
-    imageMtx.unlock();
+      Mat frame;
+      imageMtx.lock();
+      image.copyTo(frame);
+      imageMtx.unlock();
 
-    if(frame.data) {
-      split(frame, colors);
-      imshow("colors", colors[1]);
+      if(frame.data) {
+	split(frame, colors);
+	imshow("colors", colors[1]);
 
-      #ifdef PRINT
-      end = std::chrono::high_resolution_clock::now();
-      std::cout << "Split: " << (double)std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()/1000 << " secs" << std::endl;
-      begin = end;
-      #endif
+#ifdef PRINT
+	end = std::chrono::high_resolution_clock::now();
+	std::cout << "Split: " << (double)std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()/1000 << " secs" << std::endl;
+	begin = end;
+#endif
 
-      threshold(colors[1], edges, 180, 255, THRESH_BINARY);
-      imshow("thresh", edges);
-      GaussianBlur(edges, edges, Size(7,7), 1.5, 1.5);
+	threshold(colors[1], edges, 180, 255, THRESH_BINARY);
+	imshow("thresh", edges);
+	GaussianBlur(edges, edges, Size(7,7), 1.5, 1.5);
 	
-      #ifdef PRINT
-      end = std::chrono::high_resolution_clock::now();
-      std::cout << "Preprocessing: " << (double)std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()/1000 << " secs" << std::endl;
-      begin = end;
-      #endif
+#ifdef PRINT
+	end = std::chrono::high_resolution_clock::now();
+	std::cout << "Preprocessing: " << (double)std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()/1000 << " secs" << std::endl;
+	begin = end;
+#endif
 
-      findContours(edges, contours, hierarchy, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE, Point(0, 0));
+	findContours(edges, contours, hierarchy, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE, Point(0, 0));
 
-      #ifdef PRINT
-      end = std::chrono::high_resolution_clock::now();
-      std::cout << "Found contours: " << (double)std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()/1000 << " secs" << std::endl;
-      begin = end;
-      #endif
+#ifdef PRINT
+	end = std::chrono::high_resolution_clock::now();
+	std::cout << "Found contours: " << (double)std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()/1000 << " secs" << std::endl;
+	begin = end;
+#endif
 	
-      std::vector<std::vector<Point> > targets;
-      std::vector<std::vector<Point> > blobs;
-      Mat drawing = Mat::zeros( edges.size(), CV_8UC3 );
-      for( int i = 0; i<contours.size(); i++ ) {
-	if(contourArea(contours[i]) < 200) continue;
-	std::vector<Point> approx;
-	approxPolyDP(contours[i], approx, arcLength(Mat(contours[i]), true) * 0.01, true);
+	std::vector<std::vector<Point> > targets;
+	std::vector<std::vector<Point> > blobs;
+	Mat drawing = Mat::zeros( edges.size(), CV_8UC3 );
+	for( int i = 0; i<contours.size(); i++ ) {
+	  if(contourArea(contours[i]) < 200) continue;
+	  std::vector<Point> approx;
+	  approxPolyDP(contours[i], approx, arcLength(Mat(contours[i]), true) * 0.01, true);
 	  
-	int vtc = approx.size();
-	if(vtc == 6 /*&& mincos >= 1.5 && maxcos <= 1.7*/) {
-	  blobs.push_back(approx);
-	  RotatedRect r = minAreaRect(approx);
-	  Point2f verts [4];
-	  r.points(verts);
-	  for(int y=0; y<4; y++) {
-	    line(drawing, verts[y], verts[(y+1)%4], Scalar(255,0,0));
+	  int vtc = approx.size();
+	  if(vtc == 6 /*&& mincos >= 1.5 && maxcos <= 1.7*/) {
+	    blobs.push_back(approx);
+	    RotatedRect r = minAreaRect(approx);
+	    Point2f verts [4];
+	    r.points(verts);
+	    for(int y=0; y<4; y++) {
+	      line(drawing, verts[y], verts[(y+1)%4], Scalar(255,0,0));
+	    }
+	    Scalar color = Scalar(0,0,255);
+	    std::vector<std::vector<Point> > cons;
+	    cons.push_back(approx);	
+	    drawContours( drawing, cons, 0, color, 2, 8, hierarchy, 0, Point() );
 	  }
-	  Scalar color = Scalar(0,0,255);
-	  std::vector<std::vector<Point> > cons;
-	  cons.push_back(approx);	
-	  drawContours( drawing, cons, 0, color, 2, 8, hierarchy, 0, Point() );
+	  else {
+	    Scalar color = Scalar(0,255,0);
+	    std::vector<std::vector<Point> > cons;
+	    cons.push_back(approx);
+	    drawContours( drawing, cons, 0, color, 2, 8, hierarchy, 0, Point() );	      
+	  }
 	}
-	else {
-	  Scalar color = Scalar(0,255,0);
-	  std::vector<std::vector<Point> > cons;
-	  cons.push_back(approx);
-	  drawContours( drawing, cons, 0, color, 2, 8, hierarchy, 0, Point() );	      
+
+	if(blobs.size() > 1) {
+	  std::cout << "sorting" << std::endl;
+	  std::sort(blobs.begin(), blobs.end(), compareArea);
+	  targets.push_back(blobs[0]);
+	  targets.push_back(blobs[1]);
+
+	  std::vector<Moments> mu (targets.size());
+	  for(int i=0; i<targets.size(); i++) {
+	    mu[i] = moments(targets[i], false);
+	  }
+
+	  std::vector<Point2f> centers (targets.size());
+	  for(int i=0; i<targets.size(); i++) {
+	    centers[i] = Point2f(mu[i].m10/mu[i].m00, mu[i].m01/mu[i].m00);
+	    circle(drawing, centers[i], 4, Scalar(0, 0, 255), -1, 8, 0);
+	  }
+
+	  Point2f mean ((centers[0].x + centers[1].x) / 2, (centers[0].y + centers[1].y) / 2);
+
+	  circle(drawing, mean, 4, Scalar(255, 0, 255), -1, 8, 0);
 	}
+
+	imshow("edges", drawing);
+	if(waitKey(30) >= 0) break;
       }
 
-      if(blobs.size() > 1) {
-	std::cout << "sorting" << std::endl;
-	std::sort(blobs.begin(), blobs.end(), compareArea);
-	targets.push_back(blobs[0]);
-	targets.push_back(blobs[1]);
-
-	std::vector<Moments> mu (targets.size());
-	for(int i=0; i<targets.size(); i++) {
-	  mu[i] = moments(targets[i], false);
-	}
-
-	std::vector<Point2f> centers (targets.size());
-	for(int i=0; i<targets.size(); i++) {
-	  centers[i] = Point2f(mu[i].m10/mu[i].m00, mu[i].m01/mu[i].m00);
-	  circle(drawing, centers[i], 4, Scalar(0, 0, 255), -1, 8, 0);
-	}
-
-	Point2f mean ((centers[0].x + centers[1].x) / 2, (centers[0].y + centers[1].y) / 2);
-
-	circle(drawing, mean, 4, Scalar(255, 0, 255), -1, 8, 0);
-      }
-
-      imshow("edges", drawing);
-      if(waitKey(30) >= 0) break;
+#ifdef PRINT
+      end = std::chrono::high_resolution_clock::now();
+      std::cout << "Final: " << (double)std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()/1000 << " secs" << std::endl << std::endl;
+#endif
+      freshImageMtx.lock();
+      freshImage = false;
+      freshImageMtx.unlock();
     }
-
-    #ifdef PRINT
-    end = std::chrono::high_resolution_clock::now();
-    std::cout << "Final: " << (double)std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()/1000 << " secs" << std::endl << std::endl;
-    #endif
   }
 }
