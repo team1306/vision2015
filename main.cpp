@@ -1,4 +1,5 @@
 #define PRINT
+#define DISPLAY
 
 #include <thread>
 #include <mutex>
@@ -31,7 +32,11 @@ Mat image;
 std::mutex freshImageMtx;
 bool freshImage = false;
 
+std::mutex distanceMtx;
+double distanceToTarget;
+
 bool compareArea(std::vector<Point>, std::vector<Point>);
+
 void ServeRoboRIO();
 void GrabImage();
 void ProcessImage();
@@ -70,16 +75,23 @@ void ServeRoboRIO() {
   new_fd = accept(sockfd, (struct sockaddr*) NULL, NULL);
   char incoming [100];
   int s = 0;
+  double dist, lat;
+  std::string message;
   while(1) {
     bzero(incoming, 100);
     s = recv(new_fd, incoming, 100, 0);
     if(s > 0) {
-      double lat;
+      dist = stod(std::string(incoming));
+      distanceMtx.lock();
+      distanceToTarget = dist;
+      distanceMtx.unlock();
+
+      lat;
       lateralMtx.lock();
       lat = lateral;
       lateralMtx.unlock();
     
-      std::string message = std::to_string(lat*std::stod(incoming));
+      message = std::to_string(lat);
       send(new_fd, message.c_str(), message.size(), 0);
     }
   }
@@ -132,6 +144,7 @@ void ProcessImage() {
 
   while(1) {
     if(freshImage) {
+
 #ifdef PRINT
       begin = std::chrono::high_resolution_clock::now();
 #endif
@@ -143,7 +156,10 @@ void ProcessImage() {
 
       if(frame.data) {
 	split(frame, colors);
+
+#ifdef DISPLAY
 	imshow("colors", colors[1]);
+#endif
 
 #ifdef PRINT
 	end = std::chrono::high_resolution_clock::now();
@@ -152,7 +168,11 @@ void ProcessImage() {
 #endif
 
 	threshold(colors[1], edges, 180, 255, THRESH_BINARY);
+
+#ifdef DISPLAY
 	imshow("thresh", edges);
+#endif
+
 	GaussianBlur(edges, edges, Size(7,7), 1.5, 1.5);
 	
 #ifdef PRINT
@@ -188,14 +208,20 @@ void ProcessImage() {
 	    }
 	    Scalar color = Scalar(0,0,255);
 	    std::vector<std::vector<Point> > cons;
-	    cons.push_back(approx);	
+	    cons.push_back(approx);
+
+#ifdef DISPLAY
 	    drawContours( drawing, cons, 0, color, 2, 8, hierarchy, 0, Point() );
+#endif
 	  }
 	  else {
 	    Scalar color = Scalar(0,255,0);
 	    std::vector<std::vector<Point> > cons;
 	    cons.push_back(approx);
-	    drawContours( drawing, cons, 0, color, 2, 8, hierarchy, 0, Point() );	      
+
+#ifdef DISPLAY
+	    drawContours( drawing, cons, 0, color, 2, 8, hierarchy, 0, Point() );
+#endif
 	  }
 	}
 
@@ -213,16 +239,24 @@ void ProcessImage() {
 	  std::vector<Point2f> centers (targets.size());
 	  for(int i=0; i<targets.size(); i++) {
 	    centers[i] = Point2f(mu[i].m10/mu[i].m00, mu[i].m01/mu[i].m00);
+
+#ifdef DISPLAY
 	    circle(drawing, centers[i], 4, Scalar(0, 0, 255), -1, 8, 0);
+#endif
 	  }
 
 	  Point2f mean ((centers[0].x + centers[1].x) / 2, (centers[0].y + centers[1].y) / 2);
+	  
 
+#ifdef DISPLAY
 	  circle(drawing, mean, 4, Scalar(255, 0, 255), -1, 8, 0);
+#endif
 	}
 
+#ifdef DISPLAY
 	imshow("edges", drawing);
 	if(waitKey(30) >= 0) break;
+#endif
       }
 
 #ifdef PRINT
