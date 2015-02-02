@@ -95,14 +95,14 @@ void GrabImage() {
 
   Mat tmp;
 
-  #ifdef PRINT
+#ifdef PRINT
   std::chrono::high_resolution_clock::time_point begin, end;
-  #endif
+#endif
 
   while(1) {
-    #ifdef PRINT
+#ifdef PRINT
     begin = std::chrono::high_resolution_clock::now();
-    #endif
+#endif
 
     vcap.read(tmp);
     imageMtx.lock();
@@ -113,10 +113,10 @@ void GrabImage() {
     freshImage = true;
     freshImageMtx.unlock();
 
-    #ifdef PRINT
+#ifdef PRINT
     end = std::chrono::high_resolution_clock::now();
     std::cout << "Read: " << (double)std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()/1000 << " secs" << std::endl;
-    #endif
+#endif
   }
 }
 
