@@ -1,6 +1,14 @@
 /**
  * @file main.cpp
- * @brief Spawn threads to grab and process images and serve requests from the RoboRIO
+ * @brief This program spawns threads to grab and process images and serves 
+ * requests from the RoboRIO. In order to run as fast as possible, image 
+ * grabbing and image processing is split into two different threads. The 
+ * grabbing thread runs as fast as possible, updating the shared Mat variable. 
+ * Then the processing thread checks if there is a new image to process and 
+ * runs the processing commands if so. Therefore, since image processing is 
+ * less time-intensive than downloading the image, the processing command is 
+ * run once right after a new image is downloaded and then paused until another 
+ * image is acquired.
  */
 
 #define PRINT
