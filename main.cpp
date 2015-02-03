@@ -260,27 +260,36 @@ void ServeRoboRIO() {
   struct sockaddr_in servaddr;
   int sockfd, new_fd;
 
+  // Create tcp/ip socket
   sockfd = socket(AF_INET, SOCK_STREAM, 0);
 
   bzero(&servaddr, sizeof(servaddr));
   
+  // Tells the socket which port to listen on
   servaddr.sin_family = AF_INET;
   servaddr.sin_addr.s_addr = htons(INADDR_ANY);
   servaddr.sin_port = htons(5800);
-  
+
+  // Bind the socket to the port and listen for incoming connections
   bind(sockfd, (struct sockaddr *) &servaddr, sizeof(servaddr));
+  // The number here is the number of connections allowed to be queued. We won't need more than one, but for some reason it doesn't work when it equals one
   listen(sockfd, 10);
 
+  // Wait for a connection and accept it
   new_fd = accept(sockfd, (struct sockaddr*) NULL, NULL);
   char incoming [100];
   int s = 0;
   double dist, lat;
   std::string message;
 
+  // Communicate forever
   while(1) {
     bzero(incoming, 100);
+    // Read incoming stream into incoming
     s = recv(new_fd, incoming, 100, 0);
+    // If there is data and there wasn't an error (s = -1)
     if(s > 0) {
+      // Convert incoming string to a double reprsenting the distance to the target
       dist = stod(std::string(incoming));
       distanceMtx.lock();
       distanceToTarget = dist;
@@ -290,11 +299,13 @@ void ServeRoboRIO() {
       lat = lateral;
       lateralMtx.unlock();
     
+      // Send the horizontal distance to the target to the RoboRIO
       message = std::to_string(lat);
       send(new_fd, message.c_str(), message.size(), 0);
     }
   }
 
+  // If, for some reason, the loop terminates, close the sockets
   shutdown(new_fd, 2);
   shutdown(sockfd, 2);
 }
