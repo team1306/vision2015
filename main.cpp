@@ -36,6 +36,7 @@
 
 #ifdef PRINT
 #include <chrono>
+#include <fstream>
 #endif
 
 #include <sys/types.h>
@@ -47,6 +48,9 @@
 #include <opencv/highgui.h>
 
 using namespace cv;
+
+/// Log file
+std::ofstream logFile ("/var/log/vision.log");
 
 /// Mutex lock for lateral
 std::mutex lateralMtx;
@@ -139,7 +143,7 @@ Point2f findTarget(Mat tmp) {
   std::chrono::high_resolution_clock::time_point begin, end;
   begin = std::chrono::high_resolution_clock::now();
 
-  std::cout << "Data in Mat: " << (tmp.data ? "true" : "false") << std::endl;
+  logFile << "Data in Mat: " << (tmp.data ? "true" : "false") << std::endl;
 #endif
 
   // If there is, in fact, data in the Mat
@@ -149,7 +153,7 @@ Point2f findTarget(Mat tmp) {
 
 #ifdef PRINT
     end = std::chrono::high_resolution_clock::now();
-    std::cout << "Split: " << (double)std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()/1000 << " secs" << std::endl;
+    logFile << "Split: " << (double)std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()/1000 << " secs" << std::endl;
     begin = end;
 #endif
 
@@ -165,7 +169,7 @@ Point2f findTarget(Mat tmp) {
 	
 #ifdef PRINT
     end = std::chrono::high_resolution_clock::now();
-    std::cout << "Preprocessing: " << (double)std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()/1000 << " secs" << std::endl;
+    logFile << "Preprocessing: " << (double)std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()/1000 << " secs" << std::endl;
     begin = end;
 #endif
 
@@ -174,7 +178,7 @@ Point2f findTarget(Mat tmp) {
 
 #ifdef PRINT
     end = std::chrono::high_resolution_clock::now();
-    std::cout << "Found contours: " << (double)std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()/1000 << " secs" << std::endl;
+    logFile << "Found contours: " << (double)std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()/1000 << " secs" << std::endl;
     begin = end;
 #endif
 
@@ -224,7 +228,7 @@ Point2f findTarget(Mat tmp) {
     imshow("contours", drawing);
 #endif
 
-    std::cout << blobs.size() << std::endl;
+    logFile << blobs.size() << std::endl;
 
     // If we have at least two potential targets
     if(blobs.size() > 1) {
@@ -248,20 +252,20 @@ Point2f findTarget(Mat tmp) {
 
       mean = Point2f((centers[0].x + centers[1].x) / 2, (centers[0].y + centers[1].y) / 2);
 #ifdef PRINT
-      std::cout << "Point: " << mean.x << ", " << mean.y << std::endl;
+      logFile << "Point: " << mean.x << ", " << mean.y << std::endl;
 #endif
     }
 
 #ifdef PRINT
     end = std::chrono::high_resolution_clock::now();
-    std::cout << "Last part: " << (double)std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()/1000 << " secs" << std::endl;
+    logFile << "Last part: " << (double)std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()/1000 << " secs" << std::endl;
     begin = end;
 #endif
   }
 
 #ifdef PRINT
   end = std::chrono::high_resolution_clock::now();
-  std::cout << "Final: " << (double)std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()/1000 << " secs" << std::endl << std::endl;
+  logFile << "Final: " << (double)std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()/1000 << " secs" << std::endl << std::endl;
 #endif
 
   // Return the point representing the estimated center of the targets in the image
@@ -349,7 +353,7 @@ void GrabImage() {
 
 #ifdef PRINT
     end = std::chrono::high_resolution_clock::now();
-    std::cout << "Read: " << (double)std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()/1000 << " secs" << std::endl;
+    logFile << "Read: " << (double)std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()/1000 << " secs" << std::endl;
 #endif
 
   }
@@ -389,7 +393,7 @@ void ProcessImage() {
       lateralMtx.unlock();
 
 #ifdef PRINT
-      std::cout << "Lateral distance: " << mean.x << std::endl;
+      logFile << "Lateral distance: " << mean.x << std::endl;
 #endif
 
 #ifdef DISPLAY
