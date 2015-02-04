@@ -23,7 +23,7 @@
  * in the image processing thread.
  */
 
-#define DISPLAY
+//#define DISPLAY
 
 #include <thread>
 #include <mutex>
@@ -32,6 +32,7 @@
 #include <cstring>
 #include <iostream>
 #include <vector>
+#include <unistd.h>
 
 #ifdef PRINT
 #include <chrono>
@@ -137,6 +138,8 @@ Point2f findTarget(Mat tmp) {
 #ifdef PRINT
   std::chrono::high_resolution_clock::time_point begin, end;
   begin = std::chrono::high_resolution_clock::now();
+
+  std::cout << "Data in Mat: " << (tmp.data ? "true" : "false") << std::endl;
 #endif
 
   // If there is, in fact, data in the Mat
@@ -151,7 +154,7 @@ Point2f findTarget(Mat tmp) {
 #endif
 
     // Run a binary threshold only on the green channel of the source image
-    threshold(colors[1], edges, 180, 255, THRESH_BINARY);
+    threshold(colors[1], edges, 70, 255, THRESH_BINARY);
 
     // Blur the thresholded image to avoid overdetection of contours
     GaussianBlur(edges, edges, Size(7,7), 1.5, 1.5);
@@ -244,7 +247,16 @@ Point2f findTarget(Mat tmp) {
       }
 
       mean = Point2f((centers[0].x + centers[1].x) / 2, (centers[0].y + centers[1].y) / 2);
+#ifdef PRINT
+      std::cout << "Point: " << mean.x << ", " << mean.y << std::endl;
+#endif
     }
+
+#ifdef PRINT
+    end = std::chrono::high_resolution_clock::now();
+    std::cout << "Last part: " << (double)std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()/1000 << " secs" << std::endl;
+    begin = end;
+#endif
   }
 
 #ifdef PRINT
@@ -312,8 +324,8 @@ void ServeRoboRIO() {
 
 void GrabImage() {
   VideoCapture vcap;
-  //vcap.open("http://10.13.6.11/mjpg/video.mjpg");
-  vcap.open(0);
+  vcap.open("http://10.13.6.11/mjpg/video.mjpg");
+  //vcap.open(0);
 
   Mat tmp;
 
@@ -339,12 +351,18 @@ void GrabImage() {
     end = std::chrono::high_resolution_clock::now();
     std::cout << "Read: " << (double)std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()/1000 << " secs" << std::endl;
 #endif
+
   }
 }
 
 void ProcessImage() {
   Mat tmp;
   bool fresh = false;
+  int dist, lat;
+
+#ifdef PRINT
+  std::chrono::high_resolution_clock::time_point begin, end;
+#endif
 
   while(1) {
     freshImageMtx.lock();
@@ -356,13 +374,23 @@ void ProcessImage() {
       image.copyTo(tmp);
       imageMtx.unlock();
 
-      Point mean = findTarget(tmp);
+#ifdef PRINT
+      begin = std::chrono::high_resolution_clock::now();
+#endif
+
+      Point2f mean = findTarget(tmp);
+
       distanceMtx.lock();
-      lateralMtx.lock();
-      lateral = (mean.x - tmp.cols/2)*distanceToTarget;
-      std::cout << lateral << std::endl;
-      lateralMtx.unlock();
+      dist = distanceToTarget;
       distanceMtx.unlock();
+
+      lateralMtx.lock();
+      lateral = (mean.x - tmp.cols/2)*dist;
+      lateralMtx.unlock();
+
+#ifdef PRINT
+      std::cout << "Lateral distance: " << mean.x << std::endl;
+#endif
 
 #ifdef DISPLAY
       imshow("tmp", tmp);
