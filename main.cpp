@@ -23,7 +23,7 @@
  * in the image processing thread.
  */
 
-//#define DISPLAY
+#define DISPLAY
 
 #include <thread>
 #include <mutex>
@@ -250,9 +250,21 @@ Point2f findTarget(Mat tmp) {
       }
 
       mean = Point2f((centers[0].x + centers[1].x) / 2, (centers[0].y + centers[1].y) / 2);
+      RotatedRect r = minAreaRect(targets[0]);
+      double lat = (mean.x - tmp.cols/2)/r.size.height;
+
+      lateralMtx.lock();
+      lateral = lat;
+      lateralMtx.unlock();
+
 #ifdef PRINT
       logFile << "Point: " << mean.x << ", " << mean.y << std::endl;
 #endif
+    }
+    else {
+      lateralMtx.lock();
+      lateral = 0.0;
+      lateralMtx.unlock();
     }
 
 #ifdef PRINT
@@ -283,15 +295,17 @@ void ServeRoboRIO() {
   // Tells the socket which port to listen on
   servaddr.sin_family = AF_INET;
   servaddr.sin_addr.s_addr = htons(INADDR_ANY);
-  servaddr.sin_port = htons(5800);
+  servaddr.sin_port = htons(5802);
 
   // Bind the socket to the port and listen for incoming connections
   bind(sockfd, (struct sockaddr *) &servaddr, sizeof(servaddr));
+  std::cout << "Bound" << std::endl;
   // The number here is the number of connections allowed to be queued. We won't need more than one, but for some reason it doesn't work when it equals one
   listen(sockfd, 10);
 
   // Wait for a connection and accept it
   new_fd = accept(sockfd, (struct sockaddr*) NULL, NULL);
+  std::cout << "Accepted connection" << std::endl;
   char incoming [100];
   int s = 0;
   double dist, lat;
@@ -302,23 +316,24 @@ void ServeRoboRIO() {
     bzero(incoming, 100);
     // Read incoming stream into incoming
     s = recv(new_fd, incoming, 100, 0);
+    std::cout << "Received data" << std::endl;
     // If there is data and there wasn't an error (s = -1)
     if(s > 0) {
       // Convert incoming string to a double reprsenting the distance to the target
-      dist = stod(std::string(incoming));
-      distanceMtx.lock();
-      distanceToTarget = dist;
-      distanceMtx.unlock();
 
       lateralMtx.lock();
       lat = lateral;
       lateralMtx.unlock();
     
       // Send the horizontal distance to the target to the RoboRIO
-      message = std::to_string(lat);
+      message = std::to_string(lat) + "\n";
       send(new_fd, message.c_str(), message.size(), 0);
     }
+    else {
+      break;
+    }
   }
+  std::cout << "Shutting down" << std::endl;
 
   // If, for some reason, the loop terminates, close the sockets
   shutdown(new_fd, 2);
@@ -383,16 +398,10 @@ void ProcessImage() {
 
       Point2f mean = findTarget(tmp);
 
-      distanceMtx.lock();
-      dist = distanceToTarget;
-      distanceMtx.unlock();
-
-      lateralMtx.lock();
-      lateral = (mean.x - tmp.cols/2)*dist;
-      lateralMtx.unlock();
-
 #ifdef PRINT
-      logFile << "Lateral distance: " << mean.x << std::endl;
+      lateralMtx.lock();
+      logFile << "Lateral distance: " << lateral << std::endl;
+      lateralMtx.unlock();
 #endif
 
 #ifdef DISPLAY
