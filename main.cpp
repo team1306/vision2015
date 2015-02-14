@@ -130,8 +130,6 @@ bool compareArea(const std::vector<Point> a, const std::vector<Point> b) {
 }
 
 Point2f findTarget(Mat tmp) {
-  // Containers for intermediate steps
-  Mat edges, thresh;
   std::vector<std::vector<Point> > contours;
   std::vector<Vec4i> hierarchy;
   Mat colors [3];
@@ -152,7 +150,7 @@ Point2f findTarget(Mat tmp) {
     imshow("raw", tmp);
 #endif
 
-    
+    // Blur the image to smooth edges
     GaussianBlur(tmp, tmp, Size(7,7), 1.5, 1.5);
 
     // Convert the image to HSV and filter for green hue, high saturation, and 
@@ -160,7 +158,6 @@ Point2f findTarget(Mat tmp) {
     Mat hsv, filtered;
     cvtColor(tmp, hsv, CV_BGR2HSV);
     inRange(hsv, Scalar(50, 80, 10), Scalar(100, 255, 255), filtered);
-    filtered.copyTo(edges);
 
 #ifdef DISPLAY
     imshow("ranged", filtered);
@@ -179,7 +176,7 @@ Point2f findTarget(Mat tmp) {
 #endif
 
     // Find all contours in the image and add the vectors of points to contours
-    findContours(edges, contours, hierarchy, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE, Point(0, 0));
+    findContours(filtered, contours, hierarchy, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE, Point(0, 0));
 
 #ifdef PRINT
     end = std::chrono::high_resolution_clock::now();
@@ -190,7 +187,7 @@ Point2f findTarget(Mat tmp) {
     // Find targets among the contours
     std::vector<std::vector<Point> > targets;
     std::vector<std::vector<Point> > blobs;
-    Mat drawing = Mat::zeros( edges.size(), CV_8UC3 );
+    Mat drawing = Mat::zeros(filtered.size(), CV_8UC3);
     for( int i = 0; i<contours.size(); i++ ) {
       // If the area bounded by the contour is small, just continue to the next one
       if(contourArea(contours[i]) < 200) continue;
