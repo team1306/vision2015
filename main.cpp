@@ -147,24 +147,30 @@ Point2f findTarget(Mat tmp) {
 
   // If there is, in fact, data in the Mat
   if(tmp.data) {
-    // Split the image into BGR
-    split(tmp, colors);
 
-#ifdef PRINT
-    end = std::chrono::high_resolution_clock::now();
-    logFile << "Split: " << (double)std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()/1000 << " secs" << std::endl;
-    begin = end;
+#ifdef DISPLAY
+    imshow("raw", tmp);
+#endif
+
+    
+    GaussianBlur(tmp, tmp, Size(7,7), 1.5, 1.5);
+
+    // Convert the image to HSV and filter for green hue, high saturation, and 
+    // high value
+    Mat hsv, filtered;
+    cvtColor(tmp, hsv, CV_BGR2HSV);
+    inRange(hsv, Scalar(50, 80, 10), Scalar(100, 255, 255), filtered);
+    filtered.copyTo(edges);
+
+#ifdef DISPLAY
+    imshow("ranged", filtered);
 #endif
 
     // Run a binary threshold only on the green channel of the source image
-    threshold(colors[1], edges, 70, 255, THRESH_BINARY);
+    // This threshold needs tuning
+    //threshold(colors[1], edges, 10, 255, THRESH_BINARY);
 
     // Blur the thresholded image to avoid overdetection of contours
-    GaussianBlur(edges, edges, Size(7,7), 1.5, 1.5);
-
-#ifdef DISPLAY
-    imshow("blur", edges);
-#endif
 	
 #ifdef PRINT
     end = std::chrono::high_resolution_clock::now();
@@ -191,11 +197,11 @@ Point2f findTarget(Mat tmp) {
       std::vector<Point> approx;
 
       // Approximate the contour by a polygon with accurace proportional to its perimeter
-      approxPolyDP(contours[i], approx, arcLength(Mat(contours[i]), true) * 0.01, true);
+      approxPolyDP(contours[i], approx, arcLength(Mat(contours[i]), true) * 0.05, true);
 	  
       int vtc = approx.size();
       // If the polygon has six sides like a target
-      if(vtc == 6) {
+      if(vtc >= 6 && vtc < 8) {
 	// Add the polygon to the list of possible targets
 	blobs.push_back(approx);
 
@@ -254,7 +260,7 @@ Point2f findTarget(Mat tmp) {
       double lat = (mean.x - tmp.cols/2)/r.size.height;
 
       lateralMtx.lock();
-      lateral = lat;
+      lateral = -lat;
       lateralMtx.unlock();
 
 #ifdef PRINT
@@ -299,77 +305,79 @@ void ServeRoboRIO() {
 
   // Bind the socket to the port and listen for incoming connections
   bind(sockfd, (struct sockaddr *) &servaddr, sizeof(servaddr));
-  std::cout << "Bound" << std::endl;
+  //std::cout << "Bound" << std::endl;
   // The number here is the number of connections allowed to be queued. We won't need more than one, but for some reason it doesn't work when it equals one
-  listen(sockfd, 10);
-
-  // Wait for a connection and accept it
-  new_fd = accept(sockfd, (struct sockaddr*) NULL, NULL);
-  std::cout << "Accepted connection" << std::endl;
-  char incoming [100];
-  int s = 0;
-  double dist, lat;
-  std::string message;
-
-  // Communicate forever
   while(1) {
-    bzero(incoming, 100);
-    // Read incoming stream into incoming
-    s = recv(new_fd, incoming, 100, 0);
-    std::cout << "Received data" << std::endl;
-    // If there is data and there wasn't an error (s = -1)
-    if(s > 0) {
-      // Convert incoming string to a double reprsenting the distance to the target
+    listen(sockfd, 10);
 
-      lateralMtx.lock();
-      lat = lateral;
-      lateralMtx.unlock();
+    // Wait for a connection and accept it
+    new_fd = accept(sockfd, (struct sockaddr*) NULL, NULL);
+    //std::cout << "Accepted connection" << std::endl;
+    char incoming [100];
+    int s = 0;
+    double dist, lat;
+    std::string message;
+
+    // Communicate forever
+    while(1) {
+      bzero(incoming, 100);
+      // Read incoming stream into incoming
+      s = recv(new_fd, incoming, 100, 0);
+      //std::cout << "Received data" << std::endl;
+      // If there is data and there wasn't an error (s = -1)
+      if(s > 0) {
+	// Convert incoming string to a double reprsenting the distance to the target
+
+	lateralMtx.lock();
+	lat = lateral;
+	lateralMtx.unlock();
     
-      // Send the horizontal distance to the target to the RoboRIO
-      message = std::to_string(lat) + "\n";
-      send(new_fd, message.c_str(), message.size(), 0);
+	// Send the horizontal distance to the target to the RoboRIO
+	message = std::to_string(lat) + "\n";
+	send(new_fd, message.c_str(), message.size(), 0);
+      }
+      else {
+	break;
+      }
     }
-    else {
-      break;
-    }
-  }
-  std::cout << "Shutting down" << std::endl;
+    //std::cout << "Shutting down" << std::endl;
 
-  // If, for some reason, the loop terminates, close the sockets
-  shutdown(new_fd, 2);
+    // If, for some reason, the loop terminates, close the sockets
+    shutdown(new_fd, 2);
+  }
   shutdown(sockfd, 2);
 }
 
 void GrabImage() {
   VideoCapture vcap;
-  vcap.open("http://10.13.6.11/mjpg/video.mjpg");
-  //vcap.open(0);
+  if(vcap.open("http://10.13.6.11/mjpg/video.mjpg")/*vcap.open(0)*/) {
 
-  Mat tmp;
+    Mat tmp;
 
 #ifdef PRINT
-  std::chrono::high_resolution_clock::time_point begin, end;
+    std::chrono::high_resolution_clock::time_point begin, end;
 #endif
 
-  while(1) {
+    while(1) {
 #ifdef PRINT
-    begin = std::chrono::high_resolution_clock::now();
+      begin = std::chrono::high_resolution_clock::now();
 #endif
 
-    vcap.read(tmp);
-    imageMtx.lock();
-    tmp.copyTo(image);
-    imageMtx.unlock();
+      vcap.read(tmp);
+      imageMtx.lock();
+      tmp.copyTo(image);
+      imageMtx.unlock();
     
-    freshImageMtx.lock();
-    freshImage = true;
-    freshImageMtx.unlock();
+      freshImageMtx.lock();
+      freshImage = true;
+      freshImageMtx.unlock();
 
 #ifdef PRINT
-    end = std::chrono::high_resolution_clock::now();
-    logFile << "Read: " << (double)std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()/1000 << " secs" << std::endl;
+      end = std::chrono::high_resolution_clock::now();
+      logFile << "Read: " << (double)std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()/1000 << " secs" << std::endl;
 #endif
 
+    }
   }
 }
 
