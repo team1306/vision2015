@@ -23,7 +23,7 @@
  * in the image processing thread.
  */
 
-#define DISPLAY
+//#define DISPLAY
 
 #include <thread>
 #include <mutex>
@@ -151,13 +151,13 @@ Point2f findTarget(Mat tmp) {
 #endif
 
     // Blur the image to smooth edges
-    GaussianBlur(tmp, tmp, Size(7,7), 1.5, 1.5);
+    //GaussianBlur(tmp, tmp, Size(3,3), 1.5, 1.5);
 
     // Convert the image to HSV and filter for green hue, high saturation, and 
     // high value
     Mat hsv, filtered;
     cvtColor(tmp, hsv, CV_BGR2HSV);
-    inRange(hsv, Scalar(50, 80, 10), Scalar(100, 255, 255), filtered);
+    inRange(hsv, Scalar(40, 90, 30), Scalar(100, 255, 255), filtered);
 
 #ifdef DISPLAY
     imshow("ranged", filtered);
@@ -166,8 +166,6 @@ Point2f findTarget(Mat tmp) {
     // Run a binary threshold only on the green channel of the source image
     // This threshold needs tuning
     //threshold(colors[1], edges, 10, 255, THRESH_BINARY);
-
-    // Blur the thresholded image to avoid overdetection of contours
 	
 #ifdef PRINT
     end = std::chrono::high_resolution_clock::now();
@@ -194,11 +192,11 @@ Point2f findTarget(Mat tmp) {
       std::vector<Point> approx;
 
       // Approximate the contour by a polygon with accurace proportional to its perimeter
-      approxPolyDP(contours[i], approx, arcLength(Mat(contours[i]), true) * 0.05, true);
+      approxPolyDP(contours[i], approx, arcLength(Mat(contours[i]), true) * 0.02, true);
 	  
       int vtc = approx.size();
       // If the polygon has six sides like a target
-      if(vtc >= 6 && vtc < 8) {
+      if(vtc >= 6 && vtc < 7) {
 	// Add the polygon to the list of possible targets
 	blobs.push_back(approx);
 
@@ -347,34 +345,33 @@ void ServeRoboRIO() {
 
 void GrabImage() {
   VideoCapture vcap;
-  if(vcap.open("http://10.13.6.11/mjpg/video.mjpg")/*vcap.open(0)*/) {
+  while(!vcap.open("http://10.13.6.11/mjpg/video.mjpg")) {}
 
-    Mat tmp;
+  Mat tmp;
 
 #ifdef PRINT
-    std::chrono::high_resolution_clock::time_point begin, end;
+  std::chrono::high_resolution_clock::time_point begin, end;
 #endif
 
-    while(1) {
+  while(1) {
 #ifdef PRINT
-      begin = std::chrono::high_resolution_clock::now();
+    begin = std::chrono::high_resolution_clock::now();
 #endif
 
-      vcap.read(tmp);
-      imageMtx.lock();
-      tmp.copyTo(image);
-      imageMtx.unlock();
+    vcap.read(tmp);
+    imageMtx.lock();
+    tmp.copyTo(image);
+    imageMtx.unlock();
     
-      freshImageMtx.lock();
-      freshImage = true;
-      freshImageMtx.unlock();
+    freshImageMtx.lock();
+    freshImage = true;
+    freshImageMtx.unlock();
 
 #ifdef PRINT
-      end = std::chrono::high_resolution_clock::now();
-      logFile << "Read: " << (double)std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()/1000 << " secs" << std::endl;
+    end = std::chrono::high_resolution_clock::now();
+    logFile << "Read: " << (double)std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()/1000 << " secs" << std::endl;
 #endif
 
-    }
   }
 }
 
