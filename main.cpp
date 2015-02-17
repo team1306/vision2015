@@ -151,7 +151,7 @@ Point2f findTarget(Mat tmp) {
 #endif
 
     // Blur the image to smooth edges
-    //GaussianBlur(tmp, tmp, Size(3,3), 1.5, 1.5);
+    GaussianBlur(tmp, tmp, Size(3,3), 1.5, 1.5);
 
     // Convert the image to HSV and filter for green hue, high saturation, and 
     // high value
