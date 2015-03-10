@@ -345,7 +345,7 @@ void ServeRoboRIO() {
 
 void GrabImage() {
   VideoCapture vcap;
-  while(!vcap.open("http://10.13.6.11/mjpg/video.mjpg")) {}
+  while(!vcap.open("http://10.13.6.11/mjpg/video.mjpg")/*vcap.open(0)*/) {}
 
   Mat tmp;
 
